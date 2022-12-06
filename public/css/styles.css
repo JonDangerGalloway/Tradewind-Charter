@@ -1,0 +1,32 @@
+body {
+    background-color: gray;
+}
+
+.charter-estimate {
+    text-align: center;
+    margin: 5% 0;
+}
+
+.estimate-form {
+    width: 50%;
+    text-align: center;
+    margin: auto;
+}
+
+.form-input {
+    margin-bottom: 15px;
+}
+
+.form-btn {
+    text-align: center;
+    margin: 2% auto;
+}
+
+.returned {
+    text-align: center;
+    margin: 5% 0;
+}
+
+.return-item {
+    margin-bottom: 2%;
+}
