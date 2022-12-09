@@ -1,101 +1,188 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
+const cors = require('cors');
+const {
+    MongoClient
+} = require('mongodb');
+const { json } = require('body-parser');
 require('dotenv').config();
-
-
-
 const app = express();
+const client = new MongoClient(process.env.MONGO_CONNECTION);
+client.connect().then(() => console.log("Connected to db"));
 
 app.set("view engine", "ejs");
 
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.urlencoded({
+    extended: true
+}));
 app.use(express.static("public"));
+//comment out cors after its working to see if app breaks.
+app.use(cors());
+app.use(express.json());
 
-mongoose.connect('mongodb+srv://JonDangerGalloway:' + process.env.ATLASPW + '@jgcluster.nwnezq1.mongodb.net/airportDB');
+//Comment this out after its working to see if app breaks.
+app.use(express.urlencoded({
+    extended: true
+}))
 
-const airportSchema = new mongoose.Schema({
-    callSign: String,
-    name: String,
-    lat: Number,
-    long: Number,
-    region: String,
-    city: String
-});
+//UNCOMMENT TO ADD TO DB
 
-const Airport = mongoose.model("Airport", airportSchema);
+// mongoose.connect('mongodb+srv://' + MONGO_CREDENTIALS + '@jgcluster.nwnezq1.mongodb.net/airportDB');
 
+// const airportSchema = new mongoose.Schema({
+//     callSign: String,
+//     name: String,
+//     lat: Number,
+//     long: Number,
+//     region: String,
+//     city: String
+// });
 
-//Test Airports for MongoDB Atlas Connection
-const Amarillo = new Airport({
-    callSign: "KTDW",
-    name: "Tradewind Airport",
-    lat: 35.1698989868,
-    long: -101.825996399,
-    region: "US-TX",
-    city: "Amarillo" 
-});
+// const Airport = mongoose.model("Airport", airportSchema);
 
-
-const Dallas = new Airport({
-    callSign: "KRBD",
-    name: "Dallas Executive Airport",
-    lat: 32.6809005737,
-    long: -96.8682022095,
-    region: "US-TX",
-    city: "Dallas"
-});
-
-const Lubbock = new Airport({
-    callSign: "KLBB",
-    name: "Lubbock Preston Smith International Airport",
-    lat: 33.663601,
-    long: -101.822998,
-    region: "US-TX",
-    city: "Lubbock"
-});
-
-const Denver = new Airport({
-    callSign: "KDEN",
-    name: "Denver International Airport",
-    lat: 39.8616981506,
-    long: -104.672996521,
-    region: "US-CO",
-    city: "Denver"
-});
-
-const Houston = new Airport({
-    callSign: "KIAH",
-    name: "George Bush Intercontinental Houston Airport",
-    lat: 29.9843997955,
-    long: -95.3414001465,
-    region: "US-TX",
-    city: "Houston"
-});
-
-// Airport.insertMany([Amarillo, Dallas, Lubbock, Denver, Houston], function(err) {
-//     if(err) {
+// Airport.insertMany([riverFalls, rickHusband, love, dfw, hobby, ny, ohare], function(err) {
+//     if (err) {
 //         console.log(err);
 //     } else {
-//         console.log(("Successfully saved to airportDB"));
+//         console.log("Sucessfully saved to the airportDB");
 //     }
 // });
 
 
-
-
-app.get("/", function(req, res) {
+app.get("/", (req, res) => {
     res.render("form");
 });
 
 
 
-app.post("/estimate", function(req, res) {
+app.get("/searchtwo", async (req, res) => {
+    try {
+        if (req.query.name) {
+            let results;
+        if (req.query.name.includes(",") || req.query.name.includes(" ")) {
+            results = await client
+                .db("airportDB")
+                .collection("airports")
+                .aggregate([
+
+                    {
+                        $search: {
+                            index: "airportSearch",
+                            compound: {
+                                must: [{
+                                    text: {
+                                        query: req.query.name,
+                                        path: "name",
+                                        fuzzy: {
+                                            maxEdits: 1,
+                                        },
+                                    },
+                                }, ],
+                            },
+                        },
+                    },
+                    {
+                        $limit: 10,
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            callSign: 1,
+                            name: 1,
+                            lat: 1,
+                            long: 1,
+                            region: 1,
+                            city: 1,
+                            score: {
+                                $meta: "searchScore"
+                            },
+                        },
+                    },
+
+                ])
+                .toArray();
+            return res.send(results);
+
+        }
+
+        
+            results = await client
+                .db("airportDB")
+                .collection("airports")
+                .aggregate([
+
+                    {
+                        $search: {
+                            index: "airportSearch",
+                            compound: {
+                                must: [{
+                                    text: {
+                                        query: req.query.name,
+                                        path: "callSign",
+                                        fuzzy: {
+                                            maxEdits: 1,
+                                        },
+                                    },
+                                }, ],
+                            },
+                        },
+                    },
+                    {
+                        $limit: 10,
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            callSign: 1,
+                            name: 1,
+                            lat: 1,
+                            long: 1,
+                            region: 1,
+                            city: 1,
+                            score: {
+                                $meta: "searchScore"
+                            },
+                        },
+                    },
+
+                ])
+                .toArray();
+                
+            return res.send(results);
+            
+
+        
+
+    }
+    res.send([]);
+    } catch (error) {
+        console.error(error);
+        res.send([]);
+    }
+
+});
+
+app.get("/", async (req, res) => {
+    let result = await client.db("airportDB").collection("airports").findOne({
+        city: "Amarillo"
+    })
+    res.send(result);
+
+});
+
+
+
+app.post("/estimate", (req, res) => {
     let leaving = req.body.leavingFrom;
     let going = req.body.goingTo;
     let passengers = req.body.passengers;
 
-    res.render("estimate", {goTo: leaving, comeFrom: going, passNum: passengers});
+    res.render("estimate", {
+        goTo: leaving,
+        comeFrom: going,
+        passNum: passengers
+    });
 });
 
 
@@ -103,8 +190,6 @@ app.post("/estimate", function(req, res) {
 
 
 
-app.listen(3000, function() {
+app.listen(3000, () => {
     console.log("TW Charter running on Port 3000");
 });
-
-
